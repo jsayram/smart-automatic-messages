@@ -1,0 +1,5 @@
+{
+  "phone_number": "YOUR_GIRLFRIENDS_PHONE_NUMBER",
+  "ollama_model": "llama2",
+  "ollama_url": "http://localhost:11434/api/generate"
+}
