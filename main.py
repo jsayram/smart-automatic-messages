@@ -8,8 +8,8 @@ def load_config():
     with open('config.json', 'r') as f:
         return json.load(f)
 
-def generate_message(model, url):
-    prompt = "Generate a cute, sweet message for my girlfriend."
+def generate_message(model, url, prompt):
+
     data = {
         "model": model,
         "prompt": prompt,
@@ -18,7 +18,11 @@ def generate_message(model, url):
     try:
         response = requests.post(url, json=data, timeout=10)
         response.raise_for_status()
-        return response.json()['response'].strip()
+        message = response.json()['response'].strip()
+        # Remove surrounding quotes if present
+        if message.startswith('"') and message.endswith('"'):
+            message = message[1:-1]
+        return message
     except Exception as e:
         print(f"Error generating message: {e}")
         return "I love you! 💕"
@@ -43,10 +47,10 @@ def main():
     config = load_config()
     print("Starting smart automatic messages. Press Ctrl+C to stop.")
     while True:
-        message = generate_message(config['ollama_model'], config['ollama_url'])
+        message = generate_message(config['ollama_model'], config['ollama_url'], config['prompt'])
         send_message(config['phone_number'], message)
-        # Random sleep between 1 hour and 24 hours
-        sleep_time = random.randint(3600, 86400)
+        # Random sleep between 10 seconds and 24 hours
+        sleep_time = 10
         print(f"Sleeping for {sleep_time} seconds.")
         time.sleep(sleep_time)
 
