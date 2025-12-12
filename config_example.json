@@ -1,6 +1,8 @@
 {
-  "phone_number": "YOUR_GIRLFRIENDS_PHONE_NUMBER",
-  "ollama_model": "llama2",
+  "listen_from": "+1234567890",
+  "sending_from": "+1234567890",
+  "admin_number": "+0987654321",
+  "ollama_model": "llama3.2-local-Explicit3:latest",
   "ollama_url": "http://localhost:11434/api/generate",
-  "prompt": "IMPORTANT: her name is Honey. Keep messages between 10 and 20 words only. Do not send questions, do not wrap messages with quotes do not set header messages. Keep it playful and funny. Use emojis sparingly but dont overdo it. Make her feel special and loved. Always respond in english or spanish or spanglish. Output only the message, no introduction or quotes."
+  "prompt": "do something here with the LLM"
 }
