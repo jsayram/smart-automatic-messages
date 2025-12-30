@@ -13,17 +13,23 @@ def load_response_cache():
     try:
         if os.path.exists(RESPONSE_CACHE_FILE):
             with open(RESPONSE_CACHE_FILE, 'r') as f:
-                return json.load(f)
-    except:
-        pass
+                cache = json.load(f)
+                print(f"  📂 Loaded {len(cache)} cached responses")
+                return cache
+    except Exception as e:
+        print(f"  ⚠️  Could not load cache: {e}")
     return []
 
 def save_response_cache(cache):
     """Save responses to cache file."""
     # Keep only last MAX_CACHE_SIZE responses
     cache = cache[-MAX_CACHE_SIZE:]
-    with open(RESPONSE_CACHE_FILE, 'w') as f:
-        json.dump(cache, f, indent=2)
+    try:
+        with open(RESPONSE_CACHE_FILE, 'w') as f:
+            json.dump(cache, f, indent=2)
+        print(f"  💾 Saved {len(cache)} responses to cache")
+    except Exception as e:
+        print(f"  ⚠️  Could not save cache: {e}")
 
 def add_to_cache(response):
     """Add a response to the cache."""
@@ -39,8 +45,10 @@ def get_recent_phrases():
 def generate_admin_response(model, url, command):
     """Generate a response for admin commands with @LLM prefix."""
     
+    print(f"  🔄 Loading personality for admin...")
     personalities = load_personality()
     admin_prompt = personalities.get('admin_personality', 'You are a helpful AI assistant.')
+    print(f"  ✓ Personality loaded")
 
     prompt = f"{admin_prompt}\n\nAdmin command: \"{command}\"\n\nYour response:"
 
@@ -49,14 +57,29 @@ def generate_admin_response(model, url, command):
         "prompt": prompt,
         "stream": False
     }
+    print(f"  🧠 Sending admin command to LLM...")
     try:
         response = requests.post(url, json=data, timeout=30)
         response.raise_for_status()
+        print(f"  ✓ LLM responded successfully")
         message = response.json()['response'].strip()
         if message.startswith('"') and message.endswith('"'):
             message = message[1:-1]
         return message
+    except requests.exceptions.Timeout:
+        error_msg = "LLM request timed out (30s)"
+        print(f"  ❌ {error_msg}")
+        return f"Error: {error_msg}"
+    except requests.exceptions.ConnectionError:
+        error_msg = "Cannot connect to Ollama - is it running?"
+        print(f"  ❌ {error_msg}")
+        return f"Error: {error_msg}"
+    except requests.exceptions.HTTPError as e:
+        error_msg = f"HTTP error {e.response.status_code}: {e.response.text}"
+        print(f"  ❌ {error_msg}")
+        return f"Error: {error_msg}"
     except Exception as e:
+        print(f"  ❌ Unexpected error: {type(e).__name__}: {e}")
         return f"Error: {e}"
 
 def load_config():
@@ -71,13 +94,17 @@ def load_personality():
 def generate_response(model, url, incoming_message, sender_name=None):
     """Generate a response to an incoming message with a fun personality."""
     
+    print(f"  🔄 Loading personality...")
     personalities = load_personality()
     personality = personalities.get('girlfriend_personality', 'Be a helpful and friendly boyfriend.')
+    print(f"  ✓ Personality loaded")
 
     # Get recent responses to avoid repetition
+    print(f"  📚 Checking response cache...")
     recent = get_recent_phrases()
     avoid_text = ""
     if recent:
+        print(f"  ⚠️  Avoiding {len(recent)} recent phrases")
         avoid_text = f"\n\nCRITICAL - DO NOT repeat these phrases or patterns from recent messages: {recent}\nUse DIFFERENT words, reactions, and sentence structures!"
     
     prompt = f"DONT SAY MAN OR GIRL TERMS. YOU ARE TALKING TO MY GIRLFIEND. NEVER ASK QUESTIONS - ONLY STATEMENTS! {personality}{avoid_text}\n\nThey sent: \"{incoming_message}\"\n\nYour response (STATEMENT ONLY, NO QUESTIONS):"
@@ -87,16 +114,31 @@ def generate_response(model, url, incoming_message, sender_name=None):
         "prompt": prompt,
         "stream": False
     }
+    print(f"  🧠 Sending to LLM (model: {model})...")
     try:
         response = requests.post(url, json=data, timeout=30)
         response.raise_for_status()
+        print(f"  ✓ LLM responded successfully")
         message = response.json()['response'].strip()
         # Remove surrounding quotes if present
         if message.startswith('"') and message.endswith('"'):
             message = message[1:-1]
+        print(f"  📝 Generated response: {message}")
         return message
+    except requests.exceptions.Timeout:
+        error_msg = "LLM request timed out (30s)"
+        print(f"  ❌ {error_msg}")
+        return "holdd one one sec, busy!! 💕"
+    except requests.exceptions.ConnectionError:
+        error_msg = "Cannot connect to Ollama - is it running?"
+        print(f"  ❌ {error_msg}")
+        return "holdd one one sec, busy!! 💕"
+    except requests.exceptions.HTTPError as e:
+        error_msg = f"HTTP error {e.response.status_code}: {e.response.text}"
+        print(f"  ❌ {error_msg}")
+        return "holdd one one sec, busy!! 💕"
     except Exception as e:
-        print(f"Error generating response: {e}")
+        print(f"  ❌ Unexpected error: {type(e).__name__}: {e}")
         return "holdd one one sec, busy!! 💕"
 
 def send_message(phone, message):
@@ -242,13 +284,19 @@ def main():
     if admin_number:
         _, _, last_admin_rowid, _ = get_last_message(admin_number, include_from_me=True)
     
+    poll_count = 0
     while True:
+        poll_count += 1
+        if poll_count % 20 == 0:  # Every 60 seconds (20 * 3s)
+            print(f"  🔍 Still listening... (checked {poll_count} times)")
+        
         # Check girlfriend's messages
         is_incoming, body, rowid = get_last_message(listen_from)
         
         # New incoming message from girlfriend
         if is_incoming and body and rowid != last_rowid:
             print(f"\n💬 [{listen_from}] says: {body}")
+            print(f"  📊 Message ID: {rowid}")
             
             response = generate_response(
                 config['ollama_model'], 
@@ -258,6 +306,7 @@ def main():
             
             print(f"🤖 Responding: {response}")
             add_to_cache(response)
+            print(f"  ⏳ Waiting 2s before sending...")
             time.sleep(2)
             send_message(listen_from, response)
             
@@ -274,6 +323,8 @@ def main():
                 if admin_body.strip().upper().startswith('@LLM'):
                     command = admin_body.strip()[4:].strip()  # Remove @LLM prefix
                     print(f"\n🔧 [ADMIN] {admin_number}: {admin_body}")
+                    print(f"  📊 Admin Message ID: {admin_rowid}")
+                    print(f"  📝 Command: {command}")
                     
                     response = generate_admin_response(
                         config['ollama_model'],
@@ -282,9 +333,12 @@ def main():
                     )
                     
                     print(f"🤖 Admin response: {response}")
+                    print(f"  ⏳ Waiting 1s before sending...")
                     time.sleep(1)
                     send_message(admin_number, response)
                     print("-" * 55)
+                else:
+                    print(f"  ℹ️  Ignoring admin message without @LLM prefix: {admin_body[:50]}...")
                 
                 last_admin_rowid = admin_rowid
         
